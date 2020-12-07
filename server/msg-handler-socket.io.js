@@ -16,6 +16,11 @@ const {
   EVENT_ROOM_JOIN
 } = require('./message')
 
+const isAuthenticated = userName = true
+
+const getUserName = socket => socket.$userName
+const getRoomName = socket => socket.$roomName
+
 module.exports = io => socket => {
   return {
     login(userName) {
@@ -23,25 +28,20 @@ module.exports = io => socket => {
       socket.emit(LOGIN, rooms)
     },
     disconnect(reason) {
-      io.to(socket.$roomName).emit(EVENT_MESSAGE_UPDATE, {
-        userName: socket.$userName,
-        text: reason,
-      })
-
-      // this.leaveRoom(socket.$roomName)
-      socket.leave(socket.$roomName)
-      io.in(socket.$roomName).emit(EVENT_ROOM_LEAVE, {
-        roomName: socket.$roomName,
+      const roomName = getUserName(socket)
+      const userName = getRoomName(socket)
+      socket.leave(roomName)
+      io.in(roomName).emit(EVENT_ROOM_LEAVE, {
+        roomName,
         userName: 'Bot',
-        text: `${socket.$userName}, leave ${socket.$roomName}`
+        text: `${userName}, leave ${roomName}`
       })
-
     },
     async getUsers(roomName) {
       const room = io.sockets.adapter.rooms.get(roomName)
       const users = [...io.in(room).sockets.sockets.values()]
-        .filter(socket => socket.rooms.has(roomName) && socket.$userName)
-        .map(socket => socket.$userName)
+        .filter(socket => socket.rooms.has(roomName) && getUserName(socket))
+        .map(getUserName)
       debug(`${roomName}: [${users}]`)
       socket.emit(USER_LIST, users)
     },
@@ -50,22 +50,20 @@ module.exports = io => socket => {
     },
     createRoom(roomName) {
       rooms.push(roomName)
-      // socket.emit('room:create', rooms)
       io.of('/').emit(EVENT_ROOM_UPDATE, rooms)
     },
     deleteRoom(roomName) {
-      // debug('delete room:', roomName)
-      const idx = rooms.findIndex(room => room === roomName)
-      // debug('index:', idx)
-      if(idx >= 0) {
-        rooms.splice(idx, 1)
+      const roomIndex = rooms.findIndex(room => room === roomName)
+      if(roomIndex >= 0) {
+        rooms.splice(roomIndex, 1)
       }
-      // socket.emit('room:updated', rooms)
       io.of('/').emit(EVENT_ROOM_UPDATE, rooms)
     },
     joinRoom(roomName) {
       socket.leave(socket.$roomName)
+      debug('leave ', socket.$roomName)
       socket.join(roomName)
+      debug('join ', roomName)
       socket.$roomName = roomName
       // debug('join', roomName)
       socket.emit(ROOM_JOIN, messageByRoom[roomName] || [])
