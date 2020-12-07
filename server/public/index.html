@@ -1,0 +1,127 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>My first BootstrapVue app</title>
+    <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap/dist/css/bootstrap.min.css" />
+    <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.css" />
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es2015%2CIntersectionObserver"></script>
+    <script src="https://unpkg.com/vue@latest/dist/vue.js"></script>
+    <script src="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.js"></script>
+
+  </head>
+  <body>
+    <div id="app">
+      <b-container fluid class="p-0">
+        <b-navbar type="dark" variant="dark">
+          <b-navbar-nav>
+            <b-nav-item href="#">Web based realtime chat app prototype</b-nav-item>
+          </b-navbar>
+      </b-container>
+      <b-container fluid class="mt-2">
+        <b-nav-form>
+          <b-form-input v-model.trim="userName"></b-form-input>
+          <b-button class="ml-2" @click="login">Login</b-button>
+          <b-form-input v-model.trim="roomName" class="ml-2"></b-form-input>
+          <b-button class="ml-2" @click="createRoom(roomName)">Create Room</b-button>
+        </b-nav-form>
+      </b-container>
+      <b-container fluid class="mt-2">
+        <b-card
+          no-body
+          border-variant="dark"
+          v-for="(room, i) of rooms"
+          v-bind:key="room + '_' + i"
+          class="m-1 p-1"
+          style="max-width:200px; display:inline-block"
+          >
+            <b-btn size="sm" @click.prevent="joinRoom(room)">{{ room }}</b-btn>
+            <b-btn size="sm" @click.prevent="deleteRoom(room)" variant="danger" class="ml-1">X</b-btn>
+        </b-card>
+      </b-container>
+      <b-container fluid class="mt-2" v-if="currentRoom">
+        <b-row>
+          <b-col cols="8">
+            <b-card
+              bg-variant="dark"
+              border-variant="dark"
+              text-variant="light"
+              no-body
+              style="height:250px; overflow:auto;"
+              ref="msgBox"
+              class=""
+            >
+              <b-card-text class="text-center p-0 pt-1 m-0">
+                <h3>
+                  <b-badge>
+                    {{ currentRoom || "대화방을 선택하세요" }}
+                  </b-badge>
+                </h3>
+              </b-card-text>
+              <b-card-text class="p-1">
+                <b-list-group>
+                  <b-list-group-item
+                    href="#"
+                    class="flex-column align-items-start"
+                    v-for="(msg, i) of messages"
+                    v-bind:key="msg + '_' + i"
+                    :variant="msg.userName === userName ? 'light' : 'info'"
+                  >
+                    <div class="d-flex w-100 justify-content-between">
+                      <h5 class="mb-1">{{ msg.userName }}</h5>
+                      <small>1 minutes ago</small>
+                    </div>
+                    <p class="mb-1">
+                      <span v-if="msg.userName === userName" > 나 : {{ msg.text }} </span>
+                    <span v-else>
+                      {{ msg.userName }} : {{ msg.text }}
+                    </span>
+                    </p>
+                  </b-list-group-item>
+                </b-list-group>
+              </b-card-text>
+            </b-card>
+            <b-card no-body class="mt-1">
+              <b-card-text>
+                <b-input-group>
+                  <b-form-input
+                    @keyup.enter="sendMsg(currentRoom, userName, text)"
+                    v-model.trim="text"
+                  ></b-form-input>
+                  <b-input-group-append>
+                    <b-button
+                      @click="sendMsg(currentRoom, userName, text)"
+                    >전송</b-button>
+                  </b-input-group-append>
+                </b-input-group>
+              </b-card-text>
+            </b-card>
+          </b-col>
+          <b-col cols="4" class="pl-0">
+            <b-card no-body>
+            <b-list-group>
+              <b-list-group-item
+                v-for="user of users"
+                v-bind:key="user"
+              >{{ user }} </b-list-group-item>
+            </b-list-group>
+            </b-card>
+          </b-col>
+        </b-row>
+        <b-row>
+          <b-col>
+            <b-card class="mt-1">
+              <b-button @click="getUserList(currentRoom)" class="ml-1">사용자목록</b-button>
+              <b-button @click="leaveRoom(currentRoom)" class="ml-1">나가기</b-button>
+            </b-card>
+          </b-col>
+        </b-row>
+      </b-container>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="./index.js"> </script>
+  </body>
+</html>
