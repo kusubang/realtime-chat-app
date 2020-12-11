@@ -3,7 +3,7 @@
 //
 
 
-const debug = require('debug')('server')
+const debug = require('debug')('chat:server')
 
 const express = require('express')
 const app = express();
@@ -24,9 +24,12 @@ const {
   DISCONNECT
 } = require('./message')
 
-const options = { /* ... */ };
+const options = {transports: [ 'websocket', 'polling'  ]};
 
 const io = require('socket.io')(server, options);
+
+const redisAdapter = require('socket.io-redis');
+io.adapter(redisAdapter({ host: 'localhost', port: 6379 }));
 
 app.use('/', express.static(__dirname + '/public'));
 
@@ -41,6 +44,11 @@ io.on('connection', socket => {
   socket.on(ROOM_LEAVE, handler.leaveRoom)
   socket.on(MESSAGE_SEND, handler.sendMessage);
   socket.on(DISCONNECT, handler.disconnect);
+
+  socket.on('debug', handler.debug)
 })
 
-server.listen(3000);
+
+const port = process.env['PORT'] || 3000
+debug('listen:', port)
+server.listen(port);

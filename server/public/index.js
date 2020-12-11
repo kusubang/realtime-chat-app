@@ -66,6 +66,7 @@ const chatManagerMixin = {
         this.messages.push(msg)
       }
       this.getUserList(this.currentRoom)
+      this.$emit('go-bottom')
     }
 
     const eventLeaved = (msg) => {
@@ -80,6 +81,7 @@ const chatManagerMixin = {
 
     const resJoined = (messages) => {
       this.messages = messages
+      this.$emit('go-bottom')
     }
 
     const resUserList = (users) => {
@@ -129,12 +131,21 @@ const chatManagerMixin = {
     getUserList(roomName) {
       socket.emit(MESSAGE.USER_LIST, roomName)
     },
+    debug() {
+
+        socket.emit('debug')
+
+    }
   }
 }
 
 const randomId = prefix => prefix + '-' + Math.floor(Math.random() * 100000)
 
-const scrollToBottom = elem => elem.scrollTop = elem.scrollHeight;
+const scrollToBottom = elem => {
+  if(elem) {
+    elem.scrollTop = elem.scrollHeight
+  }
+};
 window.app = new Vue({
   el: '#app',
   mixins: [chatManagerMixin],
