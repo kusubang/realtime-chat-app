@@ -146,8 +146,6 @@ const chatManagerMixin = {
         roomName,
         options: {limit, page}
       })
-
-
     }
   }
 }
@@ -192,7 +190,6 @@ window.app = new Vue({
     scroll(e) {
       const limit = 3
        if(e.target.scrollTop === 0) {
-        // console.log('xxx')
         this.getConversation(this.currentRoom, {
           page: Math.floor(this.messages.length / limit),
           limit
