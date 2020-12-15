@@ -43,7 +43,7 @@
             <b-btn size="sm" @click.prevent="deleteRoom(room)" variant="danger" class="ml-1">X</b-btn>
         </b-card>
       </b-container>
-      <b-container fluid class="mt-2" v-if="currentRoom">
+      <b-container fluid class="mt-2">
         <b-row>
           <b-col cols="8">
             <b-card
@@ -53,7 +53,8 @@
               no-body
               style="height:250px; overflow:auto;"
               ref="msgBox"
-              class=""
+              class="msgBox"
+              v-on:scroll.passive="scroll"
             >
               <b-card-text class="text-center p-0 pt-1 m-0">
                 <h3>
@@ -64,6 +65,16 @@
               </b-card-text>
               <b-card-text class="p-1">
                 <b-list-group>
+                  <b-list-group-item v-if="loading" variant="warning">
+                    <div class="d-flex w-100 justify-content-between">
+                      <h5 class="mb-1">Loading</h5>
+                      <small>1 minutes ago</small>
+                    </div>
+                    <p class="mb-1">
+                      Loading....
+                    </p>
+                  </b-list-group-item>
+
                   <b-list-group-item
                     href="#"
                     class="flex-column align-items-start"
@@ -76,9 +87,9 @@
                       <small>1 minutes ago</small>
                     </div>
                     <p class="mb-1">
-                      <span v-if="msg.userName === userName" > 나 : {{ msg.text }} </span>
+                      <span v-if="msg.userName === userName" > 나 : {{ msg.messagePayload }} </span>
                     <span v-else>
-                      {{ msg.userName }} : {{ msg.text }}
+                      {{ msg.userName }} : {{ msg.messagePayload }}
                     </span>
                     </p>
                   </b-list-group-item>

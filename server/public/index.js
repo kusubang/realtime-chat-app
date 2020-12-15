@@ -75,6 +75,7 @@ const chatManagerMixin = {
     }
 
     const eventMessageUpdated = (value) => {
+      console.log(value)
       this.messages.push(value)
       this.$emit('go-bottom')
     }
@@ -82,6 +83,7 @@ const chatManagerMixin = {
     const resJoined = (messages) => {
       this.messages = messages
       this.$emit('go-bottom')
+
     }
 
     const resUserList = (users) => {
@@ -101,13 +103,18 @@ const chatManagerMixin = {
     socket.on(MESSAGE.EVENT_ROOM_LEAVE, eventLeaved)
     socket.on(MESSAGE.EVENT_MESSAGE_UPDATE, eventMessageUpdated)
 
+    socket.on('message:get', (msgs) => {
+      this.messages.unshift(...msgs)
+      this.$emit('go-top', true)
+    })
+
   },
   methods: {
-    sendMessage(roomName, userName, text) {
+    sendMessage(roomName, userName, messagePayload) {
       socket.emit(MESSAGE.MESSAGE_SEND, {
         roomName,
         userName,
-        text
+        messagePayload
       })
     },
     createRoom(roomName) {
@@ -132,8 +139,14 @@ const chatManagerMixin = {
       socket.emit(MESSAGE.USER_LIST, roomName)
     },
     debug() {
+      socket.emit('debug')
+    },
+    getConversation(roomName, {limit, page}) {
+      socket.emit('message:get', {
+        roomName,
+        options: {limit, page}
+      })
 
-        socket.emit('debug')
 
     }
   }
@@ -141,9 +154,9 @@ const chatManagerMixin = {
 
 const randomId = prefix => prefix + '-' + Math.floor(Math.random() * 100000)
 
-const scrollToBottom = elem => {
+const scrollToBottom = (elem, value = 0) => {
   if(elem) {
-    elem.scrollTop = elem.scrollHeight
+    elem.scrollTop = elem.scrollHeight - value
   }
 };
 window.app = new Vue({
@@ -153,17 +166,44 @@ window.app = new Vue({
     userName: randomId('USER'),
     roomName: randomId('ROOM'),
     text: '',
+    loading: false,
   },
   mounted() {
     this.$on('go-bottom', () => {
       this.$nextTick(() => this.goBottom())
     })
+
+    this.$on('go-top', () => {
+      const el = this.$refs["msgBox"]
+      el.scrollTop = 5
+      setTimeout(() => {
+        this.loading = false;
+      }, 1000)
+
+    })
+  },
+  created() {
+
+  },
+  destroyed() {
+    this.$refs["msgBox"].removeEventListener('scroll', this.handleScroll);
   },
   methods: {
+    scroll(e) {
+      const limit = 3
+       if(e.target.scrollTop === 0) {
+        // console.log('xxx')
+        this.getConversation(this.currentRoom, {
+          page: Math.floor(this.messages.length / limit),
+          limit
+        })
+        this.loading = true;
+      }
+    },
     login() {
     },
-    goBottom() {
-      scrollToBottom(this.$refs["msgBox"])
+    goBottom(value) {
+      scrollToBottom(this.$refs["msgBox"], value)
     },
     sendMsg(roomName, userName, text) {
       this.sendMessage(roomName, userName, text)

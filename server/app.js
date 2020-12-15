@@ -28,6 +28,8 @@ const options = {transports: [ 'websocket', 'polling'  ]};
 
 const io = require('socket.io')(server, options);
 
+require('./config/mongo.js')
+
 const redisAdapter = require('socket.io-redis');
 io.adapter(redisAdapter({ host: 'localhost', port: 6379 }));
 
@@ -43,6 +45,7 @@ io.on('connection', socket => {
   socket.on(ROOM_JOIN, handler.joinRoom)
   socket.on(ROOM_LEAVE, handler.leaveRoom)
   socket.on(MESSAGE_SEND, handler.sendMessage);
+  socket.on('message:get', handler.getMessage);
   socket.on(DISCONNECT, handler.disconnect);
 
   socket.on('debug', handler.debug)

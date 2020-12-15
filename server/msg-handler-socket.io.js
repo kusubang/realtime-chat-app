@@ -17,22 +17,44 @@ const {
 const getUserName = socket => socket.$userName
 const getRoomName = socket => socket.$roomName
 
+const ChatMessageModel = require('./models/chat-message')
+
 function ChatStore(redis) {
-  async function add({roomName, userName, text}) {
+  async function post({roomName, userName, messagePayload}) {
+
     await redis.rpush(roomName, JSON.stringify({
       userName,
-      text
+      messagePayload
     }))
   }
 
   async function get(roomName) {
     const msgObj = await redis.lrange(roomName, 0, 50)
     const msg = msgObj.map(v => JSON.parse(v))
-    console.log(msg)
     return msg
   }
   return {
-    add,
+    post,
+    get
+  }
+}
+
+function ChatStoreMongo() {
+
+  async function post({ roomName, messagePayload, userName}) {
+    const post = await ChatMessageModel.createPostInChatRoom(roomName, messagePayload, userName);
+
+  }
+
+  async function get(roomName, options = {
+    page:0, limit: 3
+  }) {
+    const result = await ChatMessageModel.getConversationByRoomName(roomName, options)
+    return result;
+  }
+
+  return {
+    post,
     get
   }
 }
@@ -49,7 +71,8 @@ function RoomStore(redis) {
   }
 }
 
-const chatStore = ChatStore(redisClient)
+// const chatStore = ChatStore(redisClient)
+const chatStore = ChatStoreMongo()
 const roomStore = RoomStore(redisClient)
 
 module.exports = io => socket => {
@@ -70,7 +93,7 @@ module.exports = io => socket => {
       io.in(roomName).emit(EVENT_ROOM_LEAVE, {
         roomName,
         userName: 'Bot',
-        text: `${userName}, leave ${roomName}`
+        messagePayload: `${userName}, leave ${roomName}`
       })
 
       if(userName) {
@@ -114,7 +137,7 @@ module.exports = io => socket => {
         roomName,
         userName: 'Bot',
         targetUserName: socket.$userName,
-        text: `${socket.$userName}, joined ${roomName}`,
+        messagePayload: `${socket.$userName}, joined ${roomName}`,
       })
     },
     async leaveRoom(roomName) {
@@ -123,15 +146,20 @@ module.exports = io => socket => {
       io.in(roomName).emit(EVENT_ROOM_LEAVE, {
         roomName,
         userName: 'Bot',
-        text: `${socket.$userName}, leave ${roomName}`
+        messagePayload: `${socket.$userName}, leave ${roomName}`
       })
     },
     async sendMessage(messageObj) {
       io.to(messageObj.roomName).emit(EVENT_MESSAGE_UPDATE, {
         userName: messageObj.userName,
-        text: messageObj.text
+        messagePayload: messageObj.messagePayload
       })
-      await chatStore.add(messageObj)
+      await chatStore.post(messageObj)
+    },
+
+    async getMessage(obj) {
+      const msgs = await chatStore.get(obj.roomName, obj.options)
+      socket.emit('message:get', msgs)
     },
     async debug() {
       // await redisClient.hmset('sockets', {[userName]: socket.id})
