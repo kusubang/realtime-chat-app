@@ -1,6 +1,4 @@
 
-const { log } = console
-
 const MESSAGE = {
   CONNECT:'connect',
   DIS_CONNECT:'disconnect',
@@ -15,11 +13,32 @@ const MESSAGE = {
   ROOM_LEAVE:'room:leave',
 
   MESSAGE_SEND: 'message:send',
+  MESSAGE_GET: 'message:get',
 
   EVENT_ROOM_UPDATE: 'event:room:update',
   EVENT_ROOM_JOIN: 'event:room:join',
   EVENT_ROOM_LEAVE: 'event:room:leave',
   EVENT_MESSAGE_UPDATE: 'event:message:update',
+}
+
+function log(message, color = 'black') {
+  switch (color) {
+    case 'success':
+      color = 'Green';
+      break;
+    case 'info':
+      color = 'DodgerBlue';
+      break;
+    case 'error':
+      color = 'Red';
+      break;
+    case 'warning':
+      color = 'Orange';
+      break;
+    default:
+      color = color;
+  }
+  console.log('%c' + message, 'color:' + color);
 }
 
 const socket = io();
@@ -39,10 +58,15 @@ const chatManagerMixin = {
   },
   mounted() {
     const connected = ()=> {
+      log('connected', 'success')
       socket.emit('login', this.userName)
+      if(this.currentRoom) {
+        this.joinRoom(this.currentRoom)
+      }
     }
 
     const disconnected = (reason) => {
+      log('disconnected')
       this.messages.push({
         userName: 'Admin',
         text: 'disconnected: ' + reason
@@ -61,12 +85,11 @@ const chatManagerMixin = {
     }
 
     const eventJoined = (msg) => {
-      this.currentRoom = msg.roomName
       if(msg.targetUserName !== this.userName) {
         this.messages.push(msg)
       }
       this.getUserList(this.currentRoom)
-      this.$emit('go-bottom')
+      this.$emit('ui:message:added')
     }
 
     const eventLeaved = (msg) => {
@@ -75,19 +98,23 @@ const chatManagerMixin = {
     }
 
     const eventMessageUpdated = (value) => {
-      console.log(value)
       this.messages.push(value)
-      this.$emit('go-bottom')
+      this.$emit('ui:message:added')
     }
 
     const resJoined = (messages) => {
       this.messages = messages
-      this.$emit('go-bottom')
+      this.$emit('ui:message:added')
 
     }
 
     const resUserList = (users) => {
       this.users = users
+    }
+
+    const resMessageGet = (msgs) => {
+      this.messages.unshift(...msgs)
+      this.$emit('ui:message:shifed', true)
     }
 
     socket.on(MESSAGE.CONNECT, connected)
@@ -103,10 +130,7 @@ const chatManagerMixin = {
     socket.on(MESSAGE.EVENT_ROOM_LEAVE, eventLeaved)
     socket.on(MESSAGE.EVENT_MESSAGE_UPDATE, eventMessageUpdated)
 
-    socket.on('message:get', (msgs) => {
-      this.messages.unshift(...msgs)
-      this.$emit('go-top', true)
-    })
+    socket.on(MESSAGE_GET, resMessageGet)
 
   },
   methods: {
@@ -125,6 +149,7 @@ const chatManagerMixin = {
     },
     joinRoom(roomName) {
       socket.emit(MESSAGE.ROOM_JOIN, roomName)
+      this.currentRoom = roomName
     },
     leaveRoom(roomName) {
       socket.emit(MESSAGE.ROOM_LEAVE, roomName)
@@ -142,7 +167,7 @@ const chatManagerMixin = {
       socket.emit('debug')
     },
     getConversation(roomName, {limit, page}) {
-      socket.emit('message:get', {
+      socket.emit(MESSAGE_GET, {
         roomName,
         options: {limit, page}
       })
@@ -165,42 +190,60 @@ window.app = new Vue({
     roomName: randomId('ROOM'),
     text: '',
     loading: false,
+    needMore: false,
+    limit: 5
   },
   mounted() {
-    this.$on('go-bottom', () => {
+    this.$on('ui:message:added', () => {
       this.$nextTick(() => this.goBottom())
     })
 
-    this.$on('go-top', () => {
-      const el = this.$refs["msgBox"]
-      el.scrollTop = 5
+    this.$on('ui:message:shifed', () => {
+      const el = this.$refs['msgBox']
+      el.scrollTop = 130
       setTimeout(() => {
         this.loading = false;
-      }, 1000)
 
+      }, 1000)
     })
   },
   created() {
-
+    const currentRoom = localStorage.getItem('currentRoom', '');
+    if(currentRoom) {
+      this.joinRoom(currentRoom)
+    }
+    window.onbeforeunload = () => {
+      localStorage.setItem('currentRoom', this.currentRoom);
+      console.log(this.currentRoom)
+      return 'Are you sure you want to close the window?';
+    }
   },
   destroyed() {
-    this.$refs["msgBox"].removeEventListener('scroll', this.handleScroll);
+    this.$refs['msgBox'].removeEventListener('scroll', this.handleScroll);
+    localStorage.setItem('currentRoom', this.currentRoom);
   },
   methods: {
     scroll(e) {
-      const limit = 3
-       if(e.target.scrollTop === 0) {
-        this.getConversation(this.currentRoom, {
-          page: Math.floor(this.messages.length / limit),
-          limit
-        })
-        this.loading = true;
+      if(this.loading) {
+        return
+      }
+       if(e.target.scrollTop === 0 && this.messages.length >= 5) {
+        this.needMore = true
       }
     },
     login() {
     },
+    more() {
+      this.loading = true;
+      this.getConversation(this.currentRoom, {
+        page: Math.floor(this.messages.length / this.limit),
+        limit: this.limit
+      })
+      this.needMore = false;
+
+    },
     goBottom(value) {
-      scrollToBottom(this.$refs["msgBox"], value)
+      scrollToBottom(this.$refs['msgBox'], value)
     },
     sendMsg(roomName, userName, text) {
       this.sendMessage(roomName, userName, text)

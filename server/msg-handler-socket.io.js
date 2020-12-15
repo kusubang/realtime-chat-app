@@ -14,66 +14,15 @@ const {
   EVENT_ROOM_JOIN
 } = require('./message')
 
-const getUserName = socket => socket.$userName
-const getRoomName = socket => socket.$roomName
 
-const ChatMessageModel = require('./models/chat-message')
+const ChatStoreMongo = require('./store/chat-store-mongo')
+const RoomStore = require('./store/room-store')
 
-function ChatStore(redis) {
-  async function post({roomName, userName, messagePayload}) {
-
-    await redis.rpush(roomName, JSON.stringify({
-      userName,
-      messagePayload
-    }))
-  }
-
-  async function get(roomName) {
-    const msgObj = await redis.lrange(roomName, 0, 50)
-    const msg = msgObj.map(v => JSON.parse(v))
-    return msg
-  }
-  return {
-    post,
-    get
-  }
-}
-
-function ChatStoreMongo() {
-
-  async function post({ roomName, messagePayload, userName}) {
-    const post = await ChatMessageModel.createPostInChatRoom(roomName, messagePayload, userName);
-
-  }
-
-  async function get(roomName, options = {
-    page:0, limit: 3
-  }) {
-    const result = await ChatMessageModel.getConversationByRoomName(roomName, options)
-    return result;
-  }
-
-  return {
-    post,
-    get
-  }
-}
-
-function RoomStore(redis) {
-  const KEY = 'rooms'
-  return {
-    async add(roomName) {
-      await redis.sadd(KEY, roomName)
-    },
-    async get() {
-      return await redis.smembers(KEY)
-    }
-  }
-}
-
-// const chatStore = ChatStore(redisClient)
 const chatStore = ChatStoreMongo()
 const roomStore = RoomStore(redisClient)
+
+const getUserName = socket => socket.$userName
+const getRoomName = socket => socket.$roomName
 
 module.exports = io => socket => {
 
@@ -162,8 +111,6 @@ module.exports = io => socket => {
       socket.emit('message:get', msgs)
     },
     async debug() {
-      // await redisClient.hmset('sockets', {[userName]: socket.id})
-      // await redisClient.del('sockets')
       const sockets = await redisClient.hgetall('sockets')
       console.log(sockets)
     },
