@@ -8,7 +8,15 @@
     <title>Realtime Chat App</title>
     <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap/dist/css/bootstrap.min.css" />
     <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.css" />
-
+    <style>
+      textarea {
+        -webkit-box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        box-sizing: border-box;
+        width: 100%;
+      }
+    </style>
+    <script src="https://unpkg.com/marked@0.3.6"></script>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es2015%2CIntersectionObserver"></script>
     <script src="https://unpkg.com/vue@latest/dist/vue.js"></script>
     <script src="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.js"></script>
@@ -19,20 +27,44 @@
       <b-container fluid class="p-0">
         <b-navbar type="dark" variant="dark">
           <b-navbar-nav>
-            <b-nav-item href="#"></b-nav-item>
-            <b-nav-form>
-              <b-form-input v-model.trim="userName"></b-form-input>
-              <b-button class="ml-2" @click="login">Login</b-button>
-              <b-button class="ml-2" @click="debug">Debug</b-button>
-            </b-nav-form>
+            <b-nav-item href="#">Realtime Chat App using Socket.io</b-nav-item>
           </b-navbar>
       </b-container>
-      <b-container fluid class="mt-1">
-
+      <!--
+        LOGIN FORM
+      -->
+      <b-container class="mt-1" v-if="!isLoggedIn">
+        <b-card
+          bg-variant="dark"
+          border-variant="dark"
+          text-variant="light"
+        >
+          <b-form>
+            <b-form-group
+              id="input-group-1"
+              label="User Name:"
+              label-for="input-1"
+              description="Please login."
+            >
+              <b-form-input
+                id="input-1"
+                v-model.trim="userName"
+                type="email"
+                placeholder="Enter user name"
+                required
+              ></b-form-input>
+            </b-form-group>
+            <b-button type="submit" variant="primary" @click="login">Login</b-button>
+            <b-button type="reset" variant="danger">Logout</b-button>
+          </b-form>
+        </b-card>
       </b-container>
-      <b-container fluid class="mt-2">
+      <b-container fluid class="mt-2" v-else>
         <b-row cols="6">
           <b-col cols="2" sm="4" md="4">
+            <!--
+              ROOM LIST
+            -->
             <b-card bg-variant="dark" no-body class="p-1">
               <b-input-group>
                 <b-form-input v-model.trim="roomName"></b-form-input>
@@ -52,17 +84,26 @@
                 </b-list-group-item>
               </b-list-group>
             </b-card>
+            <!--
+              USER LIST
+            -->
             <b-card bg-variant="dark" no-body class="p-1 mt-1">
-            <b-list-group >
-              <b-list-group-item
-                v-for="user of users"
-                v-bind:key="user"
-              > <b-icon icon="person-fill"></b-icon> {{ user }} </b-list-group-item>
-            </b-list-group>
-          </b-card>
-
+              <b-list-group >
+                <b-list-group-item
+                  v-for="user of users"
+                  v-bind:key="user"
+                  :variant="user === userName ? 'info': 'light'"
+                >
+                  <b-icon icon="person-fill"></b-icon> {{ user }}
+                  <span v-if="user === userName"> (나)</span>
+                </b-list-group-item>
+              </b-list-group>
+            </b-card>
           </b-col>
           <b-col cols="8" sm="8" md="8" class="pl-0">
+            <!--
+              CHAT DIALOG
+            -->
             <b-card no-body >
               <b-navbar type="dark" variant="dark" dense>
                 <b-navbar-nav >
@@ -77,17 +118,24 @@
                 </b-navbar-nav>
               </b-navbar>
             </b-card>
+
             <b-card
               bg-variant="dark"
               border-variant="dark"
               text-variant="light"
               no-body
-              style="height:400px; overflow:auto;"
-              ref="msgBox"
-              class="msgBox"
-              v-on:scroll.passive="scroll"
-              >
-              <b-card-text class="p-1">
+              class="p-1"
+            >
+              <b-card
+                bg-variant="dark"
+                border-variant="dark"
+                text-variant="light"
+                no-body
+                style="height:400px; overflow:auto;"
+                ref="msgBox"
+                class="msgBox"
+                v-on:scroll.passive="scroll"
+                >
                 <b-list-group>
                   <b-list-group-item v-if="loading" variant="warning">
                     <div class="d-flex w-100 justify-content-between">
@@ -111,32 +159,27 @@
                     :variant="msg.userName === userName ? 'light' : 'info'"
                   >
                     <div class="d-flex w-100 justify-content-between">
-                      <h5 class="mb-1">{{ msg.userName }}</h5>
+                      <h5 class="mb-1">{{ msg.userName === userName && 'Me' || msg.userName }}</h5>
                       <small>1 minutes ago</small>
                     </div>
-                    <p class="mb-1">
-                      <span v-if="msg.userName === userName" > 나 : {{ msg.messagePayload }} </span>
-                    <span v-else>
-                      {{ msg.userName }} : {{ msg.messagePayload }}
-                    </span>
-                    </p>
+                    <div v-html="compiledMarkdown(msg.messagePayload || '')"></div>
                   </b-list-group-item>
                 </b-list-group>
-              </b-card-text>
+              </b-card>
             </b-card>
-            <b-card no-body class="mt-1">
+            <!--
+              INPUT TEXT
+            -->
+            <b-card no-body class="mt-1 p-1" bg-variant="dark">
               <b-card-text>
-                <b-input-group>
-                  <b-form-input
-                    @keyup.enter="sendMsg(currentRoom, userName, text)"
-                    v-model.trim="text"
-                  ></b-form-input>
-                  <b-input-group-append>
-                    <b-button
-                      @click="sendMsg(currentRoom, userName, text)"
-                    >전송</b-button>
-                  </b-input-group-append>
-                </b-input-group>
+                <textarea
+                  v-model="text"
+                  @keydown.enter.exact.prevent="sendMsg(currentRoom, userName, text)"
+                >
+                </textarea>
+                <b-button @click="sendMsg(currentRoom, userName, text)" >
+                  전송
+                </b-button>
               </b-card-text>
             </b-card>
           </b-col>

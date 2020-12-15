@@ -35,7 +35,7 @@ chatMessageSchema.statics.createPostInChatRoom = async function (chatRoomName, m
 }
 
 chatMessageSchema.statics.getConversationByRoomName = async function (chatRoomName, options = {}) {
-  console.log('get:', chatRoomName, options)
+  // console.log('get:', chatRoomName, options)
   try {
     return this.aggregate([
       { $match: { chatRoomName } },

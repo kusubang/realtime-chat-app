@@ -54,7 +54,14 @@ const chatManagerMixin = {
       users: [],
       rooms: [],
       currentRoom: null,
+      input: '# hello',
+
     }
+  },
+  computed: {
+    // compiledMarkdown() {
+    //   return marked(this.input, { sanitize: true });
+    // }
   },
   mounted() {
     const connected = ()=> {
@@ -66,10 +73,10 @@ const chatManagerMixin = {
     }
 
     const disconnected = (reason) => {
-      log('disconnected')
+      log('disconnected', reason)
       this.messages.push({
         userName: 'Admin',
-        text: 'disconnected: ' + reason
+        messagePayload: 'disconnected: ' + reason
       })
     }
 
@@ -130,7 +137,7 @@ const chatManagerMixin = {
     socket.on(MESSAGE.EVENT_ROOM_LEAVE, eventLeaved)
     socket.on(MESSAGE.EVENT_MESSAGE_UPDATE, eventMessageUpdated)
 
-    socket.on(MESSAGE_GET, resMessageGet)
+    socket.on(MESSAGE.MESSAGE_GET, resMessageGet)
 
   },
   methods: {
@@ -167,7 +174,7 @@ const chatManagerMixin = {
       socket.emit('debug')
     },
     getConversation(roomName, {limit, page}) {
-      socket.emit(MESSAGE_GET, {
+      socket.emit(MESSAGE.MESSAGE_GET, {
         roomName,
         options: {limit, page}
       })
@@ -191,7 +198,8 @@ window.app = new Vue({
     text: '',
     loading: false,
     needMore: false,
-    limit: 5
+    limit: 5,
+    isLoggedIn: false,
   },
   mounted() {
     this.$on('ui:message:added', () => {
@@ -200,23 +208,22 @@ window.app = new Vue({
 
     this.$on('ui:message:shifed', () => {
       const el = this.$refs['msgBox']
-      el.scrollTop = 130
       setTimeout(() => {
         this.loading = false;
-
+        el.scrollTop = el.scrollTop + 200
       }, 1000)
     })
   },
   created() {
-    const currentRoom = localStorage.getItem('currentRoom', '');
-    if(currentRoom) {
-      this.joinRoom(currentRoom)
-    }
-    window.onbeforeunload = () => {
-      localStorage.setItem('currentRoom', this.currentRoom);
-      console.log(this.currentRoom)
-      return 'Are you sure you want to close the window?';
-    }
+    // const currentRoom = localStorage.getItem('currentRoom', '');
+    // if(currentRoom) {
+    //   this.joinRoom(currentRoom)
+    // }
+
+    // window.onbeforeunload = () => {
+    //   localStorage.setItem('currentRoom', this.currentRoom);
+    //   return 'Are you sure you want to close the window?';
+    // }
   },
   destroyed() {
     this.$refs['msgBox'].removeEventListener('scroll', this.handleScroll);
@@ -232,7 +239,17 @@ window.app = new Vue({
       }
     },
     login() {
+      const currentRoom = localStorage.getItem('currentRoom', '');
+      if(currentRoom) {
+        this.joinRoom(currentRoom)
+      }
+      this.isLoggedIn = true
     },
+
+    compiledMarkdown(value) {
+      return marked(value, { sanitize: true });
+    },
+
     more() {
       this.loading = true;
       this.getConversation(this.currentRoom, {
@@ -242,8 +259,8 @@ window.app = new Vue({
       this.needMore = false;
 
     },
-    goBottom(value) {
-      scrollToBottom(this.$refs['msgBox'], value)
+    goBottom() {
+      scrollToBottom(this.$refs['msgBox'])
     },
     sendMsg(roomName, userName, text) {
       this.sendMessage(roomName, userName, text)
