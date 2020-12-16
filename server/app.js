@@ -24,7 +24,8 @@ const {
   DISCONNECT
 } = require('./message')
 
-const options = {transports: [ 'websocket', 'polling'  ]};
+// const options = {transports: [ 'websocket', 'polling'  ]};
+const options = {transports: [ 'websocket' ]};
 
 const io = require('socket.io')(server, options);
 

@@ -27,12 +27,14 @@ const getRoomName = socket => socket.$roomName
 module.exports = io => socket => {
 
   const ns = io.of('/')
-
+  const adapter = ns.adapter
   return {
     async login(userName) {
       socket.$userName = userName
-      socket.emit(LOGIN, await roomStore.get())
+      const rooms = await roomStore.get()
+      socket.emit(LOGIN, rooms)
       debug(`[login] ${userName}(${socket.id})`,)
+      debug('rooms:', rooms)
       await redisClient.hmset('sockets', {[userName]: socket.id})
     },
     async disconnect(reason) {
@@ -58,6 +60,7 @@ module.exports = io => socket => {
 
     },
     async getRooms() {
+      const rooms = await roomStore.get()
       socket.emit(ROOM_LIST, rooms)
     },
     async createRoom(roomName) {
@@ -105,7 +108,6 @@ module.exports = io => socket => {
       })
       await chatStore.post(messageObj)
     },
-
     async getMessage(obj) {
       const msgs = await chatStore.get(obj.roomName, obj.options)
       socket.emit('message:get', msgs)

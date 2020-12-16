@@ -41,7 +41,9 @@ function log(message, color = 'black') {
   console.log('%c' + message, 'color:' + color);
 }
 
-const socket = io();
+const socket = io({
+  transports: [ 'websocket' ]
+});
 
 //  The Message is divided into two categories.
 //  1. Response
