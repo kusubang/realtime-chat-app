@@ -68,9 +68,11 @@ const chatManagerMixin = {
   mounted() {
     const connected = ()=> {
       log('connected', 'success')
-      socket.emit('login', this.userName)
-      if(this.currentRoom) {
-        this.joinRoom(this.currentRoom)
+      if(this.userName) {
+        socket.emit('login', this.userName)
+        if(this.currentRoom) {
+          this.joinRoom(this.currentRoom)
+        }
       }
     }
 
@@ -195,8 +197,10 @@ window.app = new Vue({
   el: '#app',
   mixins: [chatManagerMixin],
   data: {
-    userName: randomId('USER'),
-    roomName: randomId('ROOM'),
+    // userName: randomId('USER'),
+    userName: '',
+    // roomName: randomId('ROOM'),
+    roomName: 'ROOM',
     text: '',
     loading: false,
     needMore: false,
@@ -236,12 +240,19 @@ window.app = new Vue({
       if(this.loading) {
         return
       }
-       if(e.target.scrollTop === 0 && this.messages.length >= 5) {
+       if(e.target.scrollTop === 0 && this.messages.length >= this.limit) {
         this.needMore = true
       }
     },
     login() {
+      if(!this.userName) {
+        return
+      }
+
+      socket.emit('login', this.userName)
+
       const currentRoom = localStorage.getItem('currentRoom', '');
+      this.currentRoom = currentRoom
       if(currentRoom) {
         this.joinRoom(currentRoom)
       }
@@ -267,6 +278,19 @@ window.app = new Vue({
     sendMsg(roomName, userName, text) {
       this.sendMessage(roomName, userName, text)
       this.text = ''
+    },
+
+    leave() {
+      this.leaveRoom(this.currentRoom)
+      this.needMore = false
+      this.messages = []
+    },
+    hello() {
+      const text = `
+      █░░█ █▀▀ █░░ █░░ █▀▀█
+      █▀▀█ █▀▀ █░░ █░░ █░░█
+      ▀░░▀ ▀▀▀ ▀▀▀ ▀▀▀ ▀▀▀▀  `
+      this.sendMsg(this.currentRoom, this.userName, text)
     },
    }
 })

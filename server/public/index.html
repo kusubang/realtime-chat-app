@@ -112,7 +112,7 @@
                   </b-nav-item>
                 </b-navbar-nav>
                 <b-navbar-nav class="ml-auto">
-                  <b-nav-item right href="#" @click="leaveRoom(currentRoom)">
+                  <b-nav-item right href="#" @click="leave(currentRoom)">
                     <b-button> <b-icon icon="x"></b-icon></b-button>
                   </b-nav-item>
                 </b-navbar-nav>
@@ -177,9 +177,8 @@
                   @keydown.enter.exact.prevent="sendMsg(currentRoom, userName, text)"
                 >
                 </textarea>
-                <b-button @click="sendMsg(currentRoom, userName, text)" >
-                  전송
-                </b-button>
+                <b-button @click="sendMsg(currentRoom, userName, text)" > 전송 </b-button>
+                <b-button @click="hello" > Hello </b-button>
               </b-card-text>
             </b-card>
           </b-col>

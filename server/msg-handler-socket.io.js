@@ -1,5 +1,6 @@
 const debug = require('debug')('chat:msg-handler')
 const redis = require('async-redis')
+const { get } = require('mongoose')
 
 const redisClient = redis.createClient()
 
@@ -24,6 +25,15 @@ const roomStore = RoomStore(redisClient)
 const getUserName = socket => socket.$userName
 const getRoomName = socket => socket.$roomName
 
+const userStore = {
+  async set(userName, socketId) {
+    await redisClient.hmset('sockets', {[userName]: socketId})
+  },
+  async get() {
+    return await redisClient.hgetall('sockets');
+  }
+}
+
 module.exports = io => socket => {
 
   const ns = io.of('/')
@@ -35,7 +45,8 @@ module.exports = io => socket => {
       socket.emit(LOGIN, rooms)
       debug(`[login] ${userName}(${socket.id})`,)
       debug('rooms:', rooms)
-      await redisClient.hmset('sockets', {[userName]: socket.id})
+      // await redisClient.hmset('sockets', {[userName]: socket.id})
+      await userStore.set(userName, socket.id)
     },
     async disconnect(reason) {
       const roomName = getRoomName(socket)
@@ -52,11 +63,13 @@ module.exports = io => socket => {
         debug('delete', socket.$userName)
       }
     },
-    async getUsers(roomName) {
-      const sockets = await ns.adapter.sockets([roomName]);
-      const re = await redisClient.hgetall('sockets');
-      const x = Object.entries(re).filter(([name, sid]) => sockets.has(sid))
-      socket.emit(USER_LIST, x.map(arr => arr[0]))
+    async getUsers(roomName = '') {
+      const sockets = await adapter.sockets([roomName]);
+      const userNameBySocketId = await userStore.get()
+      const userNames = Object.entries(userNameBySocketId)
+        .filter(([name, sid]) => sockets.has(sid))
+        .map(([name, sid]) => name)
+      socket.emit(USER_LIST, userNames)
 
     },
     async getRooms() {
