@@ -12,7 +12,7 @@ module.exports = {
   ROOM_LEAVE:'room:leave',
 
   MESSAGE_SEND: 'message:send',
-  MESSAGE_GET: 'message:get',
+  CONVERSATION_GET: 'conversation:get',
 
   EVENT_ROOM_UPDATE: 'event:room:update',
   EVENT_ROOM_JOIN: 'event:room:join',

@@ -13,7 +13,7 @@ const MESSAGE = {
   ROOM_LEAVE:'room:leave',
 
   MESSAGE_SEND: 'message:send',
-  MESSAGE_GET: 'message:get',
+  CONVERSATION_GET: 'conversation:get',
 
   EVENT_ROOM_UPDATE: 'event:room:update',
   EVENT_ROOM_JOIN: 'event:room:join',
@@ -60,35 +60,26 @@ const chatManagerMixin = {
 
     }
   },
-  computed: {
-    // compiledMarkdown() {
-    //   return marked(this.input, { sanitize: true });
-    // }
-  },
   mounted() {
-    const connected = ()=> {
+    const connected = async ()=> {
       log('connected', 'success')
-      if(this.userName) {
-        socket.emit('login', this.userName)
-        if(this.currentRoom) {
+      if(this.userName && this.currentRoom) {
+        socket.emit('login', this.userName, (error, rooms) => {
+          if(error) {
+            log(error, 'error')
+            return
+          }
           this.joinRoom(this.currentRoom)
-        }
+        })
       }
     }
 
     const disconnected = (reason) => {
-      log('disconnected', reason)
+      log(`disconnected - ${reason}`, 'warning')
       this.messages.push({
         userName: 'Admin',
         messagePayload: 'disconnected: ' + reason
       })
-    }
-
-    const ready = (rooms) => {
-      this.rooms = rooms
-      if(this.currentRoom) {
-        this.joinRoom(this.currentRoom)
-      }
     }
 
     const eventRoomUpdated = (rooms) => {
@@ -96,6 +87,7 @@ const chatManagerMixin = {
     }
 
     const eventJoined = (msg) => {
+      console.log('event: joined')
       if(msg.targetUserName !== this.userName) {
         this.messages.push(msg)
       }
@@ -108,40 +100,18 @@ const chatManagerMixin = {
       this.getUserList(this.currentRoom)
     }
 
-    const eventMessageUpdated = (value) => {
+    const eventMessageUpdated = (value) =>   {
       this.messages.push(value)
       this.$emit('ui:message:added')
     }
 
-    const resJoined = (messages) => {
-      this.messages = messages
-      this.$emit('ui:message:added')
-
-    }
-
-    const resUserList = (users) => {
-      this.users = users
-    }
-
-    const resMessageGet = (msgs) => {
-      this.messages.unshift(...msgs)
-      this.$emit('ui:message:shifed', true)
-    }
-
-    socket.on(MESSAGE.CONNECT, connected)
+    socket.on(MESSAGE.CONNECT, connected )
     socket.on(MESSAGE.DIS_CONNECT, disconnected)
-
-    socket.on(MESSAGE.LOGIN, ready)
-
-    socket.on(MESSAGE.ROOM_JOIN, resJoined)
-    socket.on(MESSAGE.USER_LIST, resUserList)
 
     socket.on(MESSAGE.EVENT_ROOM_UPDATE, eventRoomUpdated)
     socket.on(MESSAGE.EVENT_ROOM_JOIN, eventJoined)
     socket.on(MESSAGE.EVENT_ROOM_LEAVE, eventLeaved)
     socket.on(MESSAGE.EVENT_MESSAGE_UPDATE, eventMessageUpdated)
-
-    socket.on(MESSAGE.MESSAGE_GET, resMessageGet)
 
   },
   methods: {
@@ -159,8 +129,13 @@ const chatManagerMixin = {
       socket.emit(MESSAGE.ROOM_DELETE, roomName)
     },
     joinRoom(roomName) {
-      socket.emit(MESSAGE.ROOM_JOIN, roomName)
+      socket.emit(MESSAGE.ROOM_JOIN, roomName, (messages) => {
+        this.messages = messages
+        this.$emit('ui:message:added')
+        log(`joined ${roomName}`)
+      })
       this.currentRoom = roomName
+
     },
     leaveRoom(roomName) {
       socket.emit(MESSAGE.ROOM_LEAVE, roomName)
@@ -169,18 +144,30 @@ const chatManagerMixin = {
       this.users = []
     },
     getRooms() {
-      socket.emit(MESSAGE.ROOM_LIST)
+      socket.emit(MESSAGE.ROOM_LIST, rooms => {
+        this.rooms = rooms
+      })
     },
     getUserList(roomName) {
-      socket.emit(MESSAGE.USER_LIST, roomName)
+      console.log('get user list:', roomName)
+      socket.emit(MESSAGE.USER_LIST, roomName, (users) => {
+        console.log('update user list:', users)
+        this.users = users
+      })
     },
     debug() {
       socket.emit('debug')
     },
     getConversation(roomName, {limit, page}) {
-      socket.emit(MESSAGE.MESSAGE_GET, {
+      console.log('getConversation')
+      const option = {
         roomName,
         options: {limit, page}
+      }
+      socket.emit(MESSAGE.CONVERSATION_GET, option, (messages)=>{
+        console.log('success get conversation')
+        this.messages.unshift(...messages)
+        this.$emit('ui:message:shifed', true)
       })
     }
   }
@@ -192,13 +179,14 @@ const scrollToBottom = (elem, value = 0) => {
   if(elem) {
     elem.scrollTop = elem.scrollHeight - value
   }
-};
+}
+
 window.app = new Vue({
   el: '#app',
   mixins: [chatManagerMixin],
   data: {
     // userName: randomId('USER'),
-    userName: '',
+    userName: 'user1',
     // roomName: randomId('ROOM'),
     roomName: 'ROOM',
     text: '',
@@ -220,7 +208,7 @@ window.app = new Vue({
       }, 1000)
     })
   },
-  created() {
+  async created() {
     // const currentRoom = localStorage.getItem('currentRoom', '');
     // if(currentRoom) {
     //   this.joinRoom(currentRoom)
@@ -230,6 +218,8 @@ window.app = new Vue({
     //   localStorage.setItem('currentRoom', this.currentRoom);
     //   return 'Are you sure you want to close the window?';
     // }
+
+    // await this.getRooms()
   },
   destroyed() {
     this.$refs['msgBox'].removeEventListener('scroll', this.handleScroll);
@@ -244,33 +234,36 @@ window.app = new Vue({
         this.needMore = true
       }
     },
-    login() {
+    async login() {
       if(!this.userName) {
         return
       }
+      socket.emit('login', this.userName, (error, rooms) => {
+        if(error) {
+          log(error, 'error')
+          return;
+        }
 
-      socket.emit('login', this.userName)
-
-      const currentRoom = localStorage.getItem('currentRoom', '');
-      this.currentRoom = currentRoom
-      if(currentRoom) {
-        this.joinRoom(currentRoom)
-      }
-      this.isLoggedIn = true
+        this.rooms = rooms
+        // const currentRoom = localStorage.getItem('currentRoom', '');
+        // this.currentRoom = currentRoom
+        // if(currentRoom) {
+          // this.joinRoom(currentRoom)
+        // }
+        this.isLoggedIn = true
+      })
     },
-
     compiledMarkdown(value) {
       return marked(value, { sanitize: true });
     },
-
     more() {
       this.loading = true;
-      this.getConversation(this.currentRoom, {
+      const option = {
         page: Math.floor(this.messages.length / this.limit),
         limit: this.limit
-      })
+      }
+      this.getConversation(this.currentRoom, option)
       this.needMore = false;
-
     },
     goBottom() {
       scrollToBottom(this.$refs['msgBox'])
@@ -279,7 +272,6 @@ window.app = new Vue({
       this.sendMessage(roomName, userName, text)
       this.text = ''
     },
-
     leave() {
       this.leaveRoom(this.currentRoom)
       this.needMore = false
@@ -290,6 +282,7 @@ window.app = new Vue({
       █░░█ █▀▀ █░░ █░░ █▀▀█
       █▀▀█ █▀▀ █░░ █░░ █░░█
       ▀░░▀ ▀▀▀ ▀▀▀ ▀▀▀ ▀▀▀▀  `
+
       this.sendMsg(this.currentRoom, this.userName, text)
     },
    }

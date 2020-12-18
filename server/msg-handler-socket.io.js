@@ -1,80 +1,89 @@
+
+//
+//  SOCKET MESSAGE HANDLER
+
+//  ██╗░░██╗░█████╗░███╗░░██╗██████╗░██╗░░░░░███████╗██████╗░
+//  ██║░░██║██╔══██╗████╗░██║██╔══██╗██║░░░░░██╔════╝██╔══██╗
+//  ███████║███████║██╔██╗██║██║░░██║██║░░░░░█████╗░░██████╔╝
+//  ██╔══██║██╔══██║██║╚████║██║░░██║██║░░░░░██╔══╝░░██╔══██╗
+//  ██║░░██║██║░░██║██║░╚███║██████╔╝███████╗███████╗██║░░██║
+//  ╚═╝░░╚═╝╚═╝░░╚═╝╚═╝░░╚══╝╚═════╝░╚══════╝╚══════╝╚═╝░░╚═╝
+
 const debug = require('debug')('chat:msg-handler')
-const redis = require('async-redis')
-const { get } = require('mongoose')
 
-const redisClient = redis.createClient()
-
-const {
-  LOGIN,
-  EVENT_MESSAGE_UPDATE,
-  EVENT_ROOM_LEAVE,
-  USER_LIST,
-  ROOM_LIST,
-  EVENT_ROOM_UPDATE,
-  ROOM_JOIN,
-  EVENT_ROOM_JOIN
-} = require('./message')
-
-
-const ChatStoreMongo = require('./store/chat-store-mongo')
-const RoomStore = require('./store/room-store')
-
-const chatStore = ChatStoreMongo()
-const roomStore = RoomStore(redisClient)
+const MESSAGE = require('./message')
 
 const getUserName = socket => socket.$userName
 const getRoomName = socket => socket.$roomName
 
-const userStore = {
-  async set(userName, socketId) {
-    await redisClient.hmset('sockets', {[userName]: socketId})
-  },
-  async get() {
-    return await redisClient.hgetall('sockets');
-  }
-}
+module.exports = (io, stores) => socket => {
 
-module.exports = io => socket => {
+  const {
+    chatStore,
+    roomStore,
+    userStore
+  } = stores
 
   const ns = io.of('/')
   const adapter = ns.adapter
-  return {
-    async login(userName) {
-      socket.$userName = userName
-      const rooms = await roomStore.get()
-      socket.emit(LOGIN, rooms)
-      debug(`[login] ${userName}(${socket.id})`,)
-      debug('rooms:', rooms)
-      // await redisClient.hmset('sockets', {[userName]: socket.id})
-      await userStore.set(userName, socket.id)
-    },
-    async disconnect(reason) {
-      const roomName = getRoomName(socket)
-      const userName = getUserName(socket)
-      socket.leave(roomName)
-      io.in(roomName).emit(EVENT_ROOM_LEAVE, {
-        roomName,
-        userName: 'Bot',
-        messagePayload: `${userName}, leave ${roomName}`
-      })
 
-      if(userName) {
-        await redisClient.hdel('sockets', userName)
-        debug('delete', socket.$userName)
-      }
-    },
-    async getUsers(roomName = '') {
+  const utils = {
+    async getUserNamesIn(roomName) {
       const sockets = await adapter.sockets([roomName]);
       const userNameBySocketId = await userStore.get()
       const userNames = Object.entries(userNameBySocketId)
         .filter(([name, sid]) => sockets.has(sid))
         .map(([name, sid]) => name)
-      socket.emit(USER_LIST, userNames)
-
+      return userNames
     },
-    async getRooms() {
+    async getUserNames() {
+      const sockets = await adapter.sockets([]);
+      const userNameBySocketId = await userStore.get()
+      const userNames = Object.entries(userNameBySocketId)
+        .filter(([name, sid]) => sockets.has(sid))
+        .map(([name, sid]) => name)
+      return userNames
+    }
+  }
+
+  const handler = {
+    async login(userName, callback) {
+      socket.$userName = userName
+      debug(`[login] ${userName}(${socket.id})`,)
+      const currentUsers = await utils.getUserNames()
+      if(currentUsers.includes(userName)) {
+        callback('user already exists', [])
+        return
+      }
+      // console.log('current users:', currentUsers)
+      // const currentUsers = await getUserNames()
+      await userStore.set(userName, socket.id)
+
       const rooms = await roomStore.get()
-      socket.emit(ROOM_LIST, rooms)
+      callback(null, rooms)
+    },
+    async disconnect(reason) {
+      const roomName = getRoomName(socket)
+      const userName = getUserName(socket)
+      socket.leave(roomName)
+      io.in(roomName).emit(MESSAGE.EVENT_ROOM_LEAVE, {
+        roomName,
+        userName: 'Bot',
+        messagePayload: `${userName} is disconnected - ${reason}`
+      })
+
+      if(userName) {
+        console.log('delete user:', userName)
+        userStore.delete(userName)
+      }
+    },
+    async getUsers(roomName = '', callback) {
+      const userNames = await utils.getUserNamesIn(roomName)
+      callback(userNames)
+    },
+    async getRooms(callback) {
+      const rooms = await roomStore.get()
+      callback(rooms)
     },
     async createRoom(roomName) {
       await roomStore.add(roomName)
@@ -82,23 +91,20 @@ module.exports = io => socket => {
       ns.emit(EVENT_ROOM_UPDATE, rooms)
     },
     async deleteRoom(roomName) {
-      await redisClient.srem("rooms", roomName);
-      const rooms = await redisClient.smembers('rooms')
-      io.of('/').emit(EVENT_ROOM_UPDATE, rooms)
+      await roomStore.delete(roomName)
+      const rooms = await roomStore.get()
+      ns.emit(EVENT_ROOM_UPDATE, rooms)
     },
-    async joinRoom(roomName) {
-      debug(`[join] ${socket.$userName} to ${roomName}`)
-      socket.leave(socket.$roomName)
-      await ns.adapter.remoteLeave(socket.id, roomName);
+    async joinRoom(roomName, callback) {
+      const userName = socket.$userName
       socket.join(roomName)
-      await ns.adapter.remoteJoin(socket.id, roomName);
-
+      debug(`[join] ${userName} to ${roomName}`)
       socket.$roomName = roomName
 
-      const msg = await chatStore.get(roomName)
-      socket.emit(ROOM_JOIN, msg)
+      const conversation = await chatStore.get(roomName)
+      callback(conversation)
 
-      io.in(roomName).emit(EVENT_ROOM_JOIN, {
+      io.in(roomName).emit(MESSAGE.EVENT_ROOM_JOIN, {
         roomName,
         userName: 'Bot',
         targetUserName: socket.$userName,
@@ -108,26 +114,36 @@ module.exports = io => socket => {
     async leaveRoom(roomName) {
       debug(`[leave] leave ${socket.$userName} from ${roomName}`)
       socket.leave(roomName)
-      io.in(roomName).emit(EVENT_ROOM_LEAVE, {
+      io.in(roomName).emit(MESSAGE.EVENT_ROOM_LEAVE, {
         roomName,
         userName: 'Bot',
         messagePayload: `${socket.$userName}, leave ${roomName}`
       })
     },
     async sendMessage(messageObj) {
-      io.to(messageObj.roomName).emit(EVENT_MESSAGE_UPDATE, {
+      io.to(messageObj.roomName).emit(MESSAGE.EVENT_MESSAGE_UPDATE, {
         userName: messageObj.userName,
         messagePayload: messageObj.messagePayload
       })
       await chatStore.post(messageObj)
     },
-    async getMessage(obj) {
+    async getConversation(obj, callback) {
+      console.log('get conversation')
       const msgs = await chatStore.get(obj.roomName, obj.options)
-      socket.emit('message:get', msgs)
-    },
-    async debug() {
-      const sockets = await redisClient.hgetall('sockets')
-      console.log(sockets)
+      socket.emit(MESSAGE.CONVERSATION_GET, msgs)
+
+      callback(msgs)
     },
   }
+
+  socket.on(MESSAGE.LOGIN, handler.login)
+  socket.on(MESSAGE.USER_LIST, handler.getUsers)
+  socket.on(MESSAGE.ROOM_LIST, handler.getRooms)
+  socket.on(MESSAGE.ROOM_CREATE, handler.createRoom)
+  socket.on(MESSAGE.ROOM_DELETE, handler.deleteRoom)
+  socket.on(MESSAGE.ROOM_JOIN, handler.joinRoom)
+  socket.on(MESSAGE.ROOM_LEAVE, handler.leaveRoom)
+  socket.on(MESSAGE.MESSAGE_SEND, handler.sendMessage);
+  socket.on(MESSAGE.CONVERSATION_GET, handler.getConversation);
+  socket.on(MESSAGE.DISCONNECT, handler.disconnect);
 }

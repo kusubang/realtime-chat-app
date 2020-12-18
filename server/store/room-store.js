@@ -7,7 +7,10 @@ function RoomStore(redis) {
     },
     async get() {
       return await redis.smembers(KEY)
-    }
+    },
+    async delete(roomName) {
+      await redis.srem("rooms", roomName);
+    },
   }
 }
 

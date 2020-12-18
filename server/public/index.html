@@ -49,140 +49,143 @@
               <b-form-input
                 id="input-1"
                 v-model.trim="userName"
-                type="email"
                 placeholder="Enter user name"
                 required
               ></b-form-input>
             </b-form-group>
-            <b-button type="submit" variant="primary" @click="login">Login</b-button>
+            <b-button variant="primary" @click="login">Login</b-button>
             <b-button type="reset" variant="danger">Logout</b-button>
           </b-form>
         </b-card>
       </b-container>
-      <b-container fluid class="mt-2" v-else>
-        <b-row cols="6">
-          <b-col cols="2" sm="4" md="4">
-            <!--
-              ROOM LIST
-            -->
-            <b-card bg-variant="dark" no-body class="p-1">
-              <b-input-group>
-                <b-form-input v-model.trim="roomName"></b-form-input>
-                <b-input-group-append>
-                  <b-button @click="createRoom(roomName)">
-                    <b-icon icon="plus-square"></b-icon>
-                  </b-button>
-                </b-input-group-append>
-              </b-input-group>
-              <b-list-group class="mt-1">
-                <b-list-group-item
-                  v-for="(room, i) of rooms"
-                  v-bind:key="room + '_' + i"
-                >
-                  <b-btn size="sm" @click.prevent="joinRoom(room)">{{ room }}</b-btn>
-                  <b-btn size="sm" @click.prevent="deleteRoom(room)" variant="danger">X</b-btn>
-                </b-list-group-item>
-              </b-list-group>
-            </b-card>
-            <!--
-              USER LIST
-            -->
-            <b-card bg-variant="dark" no-body class="p-1 mt-1">
-              <b-list-group >
-                <b-list-group-item
-                  v-for="user of users"
-                  v-bind:key="user"
-                  :variant="user === userName ? 'info': 'light'"
-                >
-                  <b-icon icon="person-fill"></b-icon> {{ user }}
-                  <span v-if="user === userName"> (나)</span>
-                </b-list-group-item>
-              </b-list-group>
-            </b-card>
-          </b-col>
-          <b-col cols="8" sm="8" md="8" class="pl-0">
-            <!--
-              CHAT DIALOG
-            -->
-            <b-card no-body >
-              <b-navbar type="dark" variant="dark" dense>
-                <b-navbar-nav >
-                  <b-nav-item href="#">
-                    {{ currentRoom || "대화방을 선택하세요" }}
-                  </b-nav-item>
-                </b-navbar-nav>
-                <b-navbar-nav class="ml-auto">
-                  <b-nav-item right href="#" @click="leave(currentRoom)">
-                    <b-button> <b-icon icon="x"></b-icon></b-button>
-                  </b-nav-item>
-                </b-navbar-nav>
-              </b-navbar>
-            </b-card>
 
-            <b-card
-              bg-variant="dark"
-              border-variant="dark"
-              text-variant="light"
-              no-body
-              class="p-1"
+      <b-container fluid class="mt-1" v-if="isLoggedIn && !currentRoom">
+        <!--
+          ROOM LIST
+        -->
+        <b-card bg-variant="dark" no-body class="p-1 mt-1">
+          <b-input-group>
+            <b-form-input v-model.trim="roomName"></b-form-input>
+            <b-input-group-append>
+              <b-button @click="createRoom(roomName)">
+                <b-icon icon="plus-square"></b-icon>
+              </b-button>
+            </b-input-group-append>
+          </b-input-group>
+          <b-list-group class="mt-1">
+            <b-list-group-item
+              v-for="(room, i) of rooms"
+              v-bind:key="room + '_' + i"
             >
+              <b-btn size="sm" @click.prevent="joinRoom(room)">{{ room }}</b-btn>
+              <b-btn size="sm" @click.prevent="deleteRoom(room)" variant="danger">X</b-btn>
+            </b-list-group-item>
+          </b-list-group>
+        </b-card>
+      </b-container>
+
+      <b-container fluid class="p-0 mt-1" v-if="currentRoom" >
+        <b-card no-body bg-variant="secondary" class="p-0 m-0" >
+          <b-navbar type="dark" variant="dark" class="p-0">
+            <b-navbar-nav >
+              <b-nav-item href="#">
+                {{ currentRoom || "대화방을 선택하세요" }}
+              </b-nav-item>
+            </b-navbar-nav>
+            <b-navbar-nav class="ml-auto">
+              <b-nav-item right href="#" @click="leave(currentRoom)">
+                <b-button> <b-icon icon="x"></b-icon></b-button>
+              </b-nav-item>
+            </b-navbar-nav>
+          </b-navbar>
+          <b-row class="p-0 m-0">
+            <b-col cols="2" sm="4" md="4" class="p-1">
+              <!--
+                USER LIST
+              -->
+              <b-card bg-variant="dark" no-body class="mt-1 p-1">
+                <b-list-group >
+                  <b-list-group-item
+                    v-for="user of users"
+                    v-bind:key="user"
+                    :variant="user === userName ? 'info': 'light'"
+                  >
+                    <b-icon icon="person-fill"></b-icon> {{ user }}
+                    <span v-if="user === userName"> (나)</span>
+                  </b-list-group-item>
+                </b-list-group>
+              </b-card>
+            </b-col>
+            <b-col cols="8" sm="8" md="8" class="p-1">
+              <!--
+                CHAT DIALOG
+              -->
               <b-card
                 bg-variant="dark"
                 border-variant="dark"
                 text-variant="light"
                 no-body
-                style="height:400px; overflow:auto;"
-                ref="msgBox"
-                class="msgBox"
-                v-on:scroll.passive="scroll"
-                >
-                <b-list-group>
-                  <b-list-group-item v-if="loading" variant="warning">
-                    <div class="d-flex w-100 justify-content-between">
-                      <h5 class="mb-1">Loading</h5>
-                      <small>now</small>
-                    </div>
-                    <p class="mb-1">
-                      <b-icon icon="three-dots" animation="cylon" font-scale="1"></b-icon>
-                    </p>
-                  </b-list-group-item>
-                  <b-card v-if="needMore" text-variant="dark">
-                    <b-card-text class="text-center">
-                      <b-btn size="sm" @click="more">More</b-btn>
-                    </b-card-text>
-                  </b-card>
-                  <b-list-group-item
-                    href="#"
-                    class="flex-column align-items-start"
-                    v-for="(msg, i) of messages"
-                    v-bind:key="msg + '_' + i"
-                    :variant="msg.userName === userName ? 'light' : 'info'"
+                class="mt-1 p-1"
+              >
+                <b-card
+                  bg-variant="dark"
+                  border-variant="dark"
+                  text-variant="light"
+                  no-body
+                  style="height:400px; overflow:auto;"
+                  ref="msgBox"
+                  class="msgBox"
+                  v-on:scroll.passive="scroll"
                   >
-                    <div class="d-flex w-100 justify-content-between">
-                      <h5 class="mb-1">{{ msg.userName === userName && 'Me' || msg.userName }}</h5>
-                      <small>1 minutes ago</small>
-                    </div>
-                    <div v-html="compiledMarkdown(msg.messagePayload || '')"></div>
-                  </b-list-group-item>
-                </b-list-group>
+                  <b-list-group>
+                    <b-list-group-item v-if="loading" variant="warning">
+                      <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">Loading</h5>
+                        <small>now</small>
+                      </div>
+                      <p class="mb-1">
+                        <b-icon icon="three-dots" animation="cylon" font-scale="1"></b-icon>
+                      </p>
+                    </b-list-group-item>
+                    <b-card v-if="needMore" text-variant="dark">
+                      <b-card-text class="text-center">
+                        <b-btn size="sm" @click="more">More</b-btn>
+                      </b-card-text>
+                    </b-card>
+                    <b-list-group-item
+                      href="#"
+                      class="flex-column align-items-start"
+                      v-for="(msg, i) of messages"
+                      v-bind:key="msg + '_' + i"
+                      :variant="msg.userName === userName ? 'light' : 'info'"
+                    >
+                      <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ msg.userName === userName && 'Me' || msg.userName }}</h5>
+                        <small>1 minutes ago</small>
+                      </div>
+                      <div v-html="compiledMarkdown(msg.messagePayload || '')"></div>
+                    </b-list-group-item>
+                  </b-list-group>
+                </b-card>
               </b-card>
-            </b-card>
-            <!--
-              INPUT TEXT
-            -->
-            <b-card no-body class="mt-1 p-1" bg-variant="dark">
-              <b-card-text>
-                <textarea
-                  v-model="text"
-                  @keydown.enter.exact.prevent="sendMsg(currentRoom, userName, text)"
-                >
-                </textarea>
-                <b-button @click="sendMsg(currentRoom, userName, text)" > 전송 </b-button>
-                <b-button @click="hello" > Hello </b-button>
-              </b-card-text>
-            </b-card>
-          </b-col>
-        </b-row>
+              <!--
+                INPUT TEXT
+              -->
+              <b-card no-body class="mt-1 p-1" bg-variant="dark">
+                <b-card-text>
+                  <textarea
+                    v-model="text"
+                    @keydown.enter.exact.prevent="sendMsg(currentRoom, userName, text)"
+                  >
+                  </textarea>
+                  <b-button @click="sendMsg(currentRoom, userName, text)" > 전송 </b-button>
+                  <b-button @click="hello" > Hello </b-button>
+                </b-card-text>
+              </b-card>
+
+            </b-col>
+          </b-row>
+        </b-card>
       </b-container>
     </div>
     <script src="/socket.io/socket.io.js"></script>
